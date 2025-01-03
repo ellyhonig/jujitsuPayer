@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Five Towns Jewjitsu Payments (Firebase Test)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #fafafa;
+      color: #333;
+      line-height: 1.6;
+    }
+    .header {
+      background-color: #fff;
+      text-align: center;
+      padding: 1rem;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1rem;
+    }
+    .logo img {
+      height: 50px;
+    }
+    .instructions {
+      text-align: center;
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .lessons-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 1rem 2rem;
+    }
+    .lesson-card {
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background-color 0.3s, box-shadow 0.3s;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .lesson-card:hover {
+      background-color: #f1f1f1;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    .lesson-card.fully-paid {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .lesson-info {
+      flex-grow: 1;
+    }
+    .lesson-info h3 {
+      font-size: 1.2rem;
+      margin-bottom: 0.3rem;
+    }
+    .payment-squares {
+      display: flex;
+      gap: 5px;
+    }
+    .square {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #bbb;
+      border-radius: 3px;
+    }
+    .square.filled {
+      background-color: #4caf50;
+      border-color: #4caf50;
+    }
+    #paymentBox {
+      position: fixed;
+      bottom: -450px;
+      left: 0;
+      width: 100%;
+      background-color: #fff;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+      transition: bottom 0.4s ease;
+      z-index: 999;
+      padding: 1.5rem 1rem 2rem;
+    }
+    #paymentBox.active {
+      bottom: 0;
+    }
+    .payment-content {
+      max-width: 500px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    #paymentTitle {
+      margin-bottom: 1.5rem;
+      font-size: 1.4rem;
+    }
+    .payment-options {
+      margin-bottom: 1.5rem;
+    }
+    .payment-options label {
+      margin-right: 1rem;
+    }
+    .payment-options input[type="radio"] {
+      margin-right: 5px;
+    }
+    .amount-row {
+      margin-bottom: 1.5rem;
+      font-size: 1.2rem;
+    }
+    #payButton {
+      background-color: #4CAF50;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #payButton:hover {
+      background-color: #45a049;
+    }
+    .add-lesson-container {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .add-lesson-form {
+      display: inline-block;
+      margin-bottom: 1rem;
+    }
+    .add-lesson-form input {
+      margin: 0.5rem;
+      padding: 0.4rem;
+      font-size: 1rem;
+    }
+    .add-lesson-form button {
+      margin-top: 0.5rem;
+      background-color: #007BFF;
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .add-lesson-form button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <img src="placeholder-logo.png" alt="Five Towns Jewjitsu" />
+    </div>
+  </header>
+
+  <div class="instructions">
+    Click on a lesson card to make a payment (Firebase Test). 
+    <br />
+    (This demo uses "completion" in increments of 0 to 100.)
+  </div>
+
+  <div class="add-lesson-container">
+    <form class="add-lesson-form" id="lessonForm">
+      <input type="text" id="lessonNameInput" placeholder="Lesson Name" required />
+      <input type="date" id="lessonDateInput" required />
+      <button type="submit">Add Lesson</button>
+    </form>
+  </div>
+
+  <main class="lessons-container" id="lessonsContainer"></main>
+
+  <div id="paymentBox">
+    <div class="payment-content">
+      <h2 id="paymentTitle">Pay for Lesson</h2>
+      <div class="payment-options" id="paymentOptions"></div>
+      <div class="amount-row">
+        <span>Paying: $</span><span id="amountValue">0</span>
+      </div>
+      <button id="payButton">Pay Now</button>
+    </div>
+  </div>
+
+  <!-- Make sure this script is at the bottom so DOM elements are accessible -->
+  <script type="module">
+    /*************** FIREBASE INIT ***************/
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics.js";
+    import {
+      getFirestore,
+      collection,
+      onSnapshot,
+      addDoc,
+      updateDoc,
+      doc
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    // Your Firebase configuration (test code)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfjDZkJfhmrqDmKBiAgtHdqflo4G5lxKk",
+      authDomain: "jujitsupayer.firebaseapp.com",
+      projectId: "jujitsupayer",
+      storageBucket: "jujitsupayer.firebasestorage.app",
+      messagingSenderId: "410514431242",
+      appId: "1:410514431242:web:35701e6bc9fed354faeef3",
+      measurementId: "G-B7WV4W1KP2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    getAnalytics(app);
+    const db = getFirestore(app);
+
+    /*************** CONSTANTS & GLOBALS ***************/
+    const lessonsContainer = document.getElementById("lessonsContainer");
+    const lessonForm = document.getElementById("lessonForm");
+    const paymentBox = document.getElementById("paymentBox");
+    const paymentTitle = document.getElementById("paymentTitle");
+    const paymentOptionsContainer = document.getElementById("paymentOptions");
+    const amountValue = document.getElementById("amountValue");
+    const payButton = document.getElementById("payButton");
+
+    // We'll store "completion" from 0 to 100 in Firestore
+    // e.g., if user picks "Half" => +50
+    const PRICE_FULL = 150; // Not used in math here, but just for info
+    let currentLessonDocId = null;
+    let currentCompletion = 0; // Current lesson's completion (0-100)
+
+    /*************** FORM HANDLER: ADD NEW LESSON ***************/
+    lessonForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById("lessonNameInput");
+      const dateInput = document.getElementById("lessonDateInput");
+
+      const name = nameInput.value.trim();
+      const date = dateInput.value.trim();
+      if (!name || !date) return;
+
+      try {
+        await addDoc(collection(db, "lessons"), {
+          name: name,
+          date: date,
+          completion: 0
+        });
+        console.log("New lesson added.");
+      } catch (err) {
+        console.error("Error adding doc: ", err);
+      }
+
+      nameInput.value = "";
+      dateInput.value = "";
+    });
+
+    /*************** REALTIME LISTENER FOR LESSONS ***************/
+    onSnapshot(collection(db, "lessons"), (snapshot) => {
+      lessonsContainer.innerHTML = ""; // Clear the container
+      snapshot.forEach((docSnap) => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        const docId = docSnap.id;
+        const name = data.name || "";
+        const date = data.date || "";
+        const completion = data.completion || 0;
+
+        const lessonCard = createLessonCard(docId, name, date, completion);
+        lessonsContainer.appendChild(lessonCard);
+      });
+    });
+
+    /*************** CREATE LESSON CARD ***************/
+    function createLessonCard(docId, name, date, completion) {
+      // Outer div
+      const card = document.createElement("div");
+      card.classList.add("lesson-card");
+      card.dataset.docId = docId;
+      card.dataset.completion = completion.toString();
+
+      // If fully paid
+      if (completion >= 100) {
+        card.classList.add("fully-paid");
+      }
+
+      // Info container
+      const infoDiv = document.createElement("div");
+      infoDiv.classList.add("lesson-info");
+      const h3 = document.createElement("h3");
+      h3.textContent = name;
+      const p = document.createElement("p");
+      p.textContent = date;
+      infoDiv.appendChild(h3);
+      infoDiv.appendChild(p);
+
+      // Payment squares (in increments of 25)
+      const squaresDiv = document.createElement("div");
+      squaresDiv.classList.add("payment-squares");
+
+      // For each 25% completion, we fill a square
+      // 25 -> 1 square, 50 -> 2 squares, 75 -> 3 squares, 100 -> 4 squares
+      const squaresFilled = Math.floor(completion / 25);
+      for (let i = 0; i < 4; i++) {
+        const square = document.createElement("div");
+        square.classList.add("square");
+        if (i < squaresFilled) {
+          square.classList.add("filled");
+        }
+        squaresDiv.appendChild(square);
+      }
+
+      // Append children
+      card.appendChild(infoDiv);
+      card.appendChild(squaresDiv);
+
+      // Click event to open payment box if not fully paid
+      if (completion < 100) {
+        card.addEventListener("click", () => {
+          openPaymentBox(docId, name, date, completion);
+        });
+      }
+
+      return card;
+    }
+
+    /*************** OPEN PAYMENT BOX ***************/
+    function openPaymentBox(docId, name, date, completion) {
+      currentLessonDocId = docId;
+      currentCompletion = completion;
+
+      paymentTitle.textContent = `Pay for ${name} (${date})`;
+      buildPaymentOptions(currentCompletion);
+      paymentBox.classList.add("active");
+    }
+
+    /*************** BUILD PAYMENT OPTIONS ***************/
+    function buildPaymentOptions(completion) {
+      paymentOptionsContainer.innerHTML = "";
+      amountValue.textContent = "0";
+
+      // We'll show options (25%, 50%, 75%, 100%) that *add* to current completion
+      // If current is 0, user can add 25, 50, 75, or 100
+      // If current is 25, user can only add 25, 50, or 75 => 100 max
+      // So let's see how much is left to 100
+      let remain = 100 - completion;
+
+      // We'll create an array of possible increments:
+      // 25, 50, 75, 100 => but only if they don't exceed "remain"
+      // (E.g., if remain=50, we offer 25 and 50, but not 75 or 100)
+      const possiblePayments = [25, 50, 75, 100].filter((val) => val <= remain);
+
+      // Default to the largest chunk
+      possiblePayments.forEach((val, idx) => {
+        const optionId = `pay-option-${val}`;
+        const label = document.createElement("label");
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "payIncrement";
+        radio.value = val.toString();
+        radio.id = optionId;
+
+        // If it's the last one in the array, check it by default
+        if (idx === possiblePayments.length - 1) {
+          radio.checked = true;
+          // For display only, if you want to show money:
+          // We'll do "val / 100" * PRICE_FULL
+          const payingAmount = (val / 100) * PRICE_FULL;
+          amountValue.textContent = payingAmount.toFixed(2);
+        }
+
+        radio.addEventListener("change", () => {
+          const payingAmount = (val / 100) * PRICE_FULL;
+          amountValue.textContent = payingAmount.toFixed(2);
+        });
+
+        label.htmlFor = optionId;
+        label.innerText = `Pay ${val}%`;
+        label.prepend(radio);
+        paymentOptionsContainer.appendChild(label);
+      });
+    }
+
+    /*************** PAY NOW (Add Percentage to Completion) ***************/
+    async function payNow() {
+      if (!currentLessonDocId) return;
+
+      // Which percentage increment did user pick?
+      const radioButtons = document.getElementsByName("payIncrement");
+      let increment = 0;
+      for (const rb of radioButtons) {
+        if (rb.checked) {
+          increment = parseInt(rb.value, 10);
+          break;
+        }
+      }
+
+      // New completion
+      const newCompletion = currentCompletion + increment;
+      try {
+        const docRef = doc(db, "lessons", currentLessonDocId);
+        await updateDoc(docRef, { completion: newCompletion });
+        console.log("Completion updated to:", newCompletion);
+      } catch (err) {
+        console.error("Error updating doc: ", err);
+      }
+
+      paymentBox.classList.remove("active");
+    }
+
+    // Because we're in a module, the HTML onclick="payNow()" won't work by default.
+    // We'll bind it via JS.
+    payButton.addEventListener("click", payNow);
+  </script>
+</body>
+</html>
